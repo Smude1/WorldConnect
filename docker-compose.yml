@@ -1,0 +1,7 @@
+version: '3.8'
+
+services:
+  # Database and other services can be added here later.
+  placeholder:
+    image: alpine
+    command: echo "Docker services will be configured here."
