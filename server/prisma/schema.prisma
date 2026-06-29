@@ -1,15 +1,540 @@
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+  RANDOM_MATCH
+  COMMUNITY
+  AI
+  SYSTEM
+}
+
+enum ConversationStatus {
+  REQUESTED
+  ACTIVE
+  ARCHIVED
+  BLOCKED
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  FILE
+  VOICE
+  SYSTEM
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  EDITED
+  DELETED
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  NEW_CONVERSATION
+  PROFILE_VIEW
+  MENTION
+  SYSTEM
+  WARNING
+}
+
+enum PresenceStatus {
+  ONLINE
+  AWAY
+  OFFLINE
+  DO_NOT_DISTURB
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  SCAM
+  FAKE_PROFILE
+  INAPPROPRIATE_CONTENT
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum LanguageProficiency {
+  NATIVE
+  FLUENT
+  ADVANCED
+  INTERMEDIATE
+  BASIC
+  LEARNING
+}
+
+enum InterestLevel {
+  CASUAL
+  REGULAR
+  PASSIONATE
+  PROFESSIONAL
+}
+
+enum DeviceType {
+  WEB
+  MOBILE
+  DESKTOP
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+model Country {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String  @unique @db.VarChar(100)
+  iso2       String  @unique @db.Char(2)
+  iso3       String  @unique @db.Char(3)
+  phone_code String? @db.VarChar(10)
+  flag_emoji String? @db.VarChar(10)
+  region     String? @db.VarChar(50)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @db.Timestamptz(6)
+
+  profiles          Profile[]
+  ProfilePreference ProfilePreference[]
+
+  @@index([name])
+  @@index([iso2])
+  @@map("countries")
+}
+
+model Language {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @unique @db.VarChar(100)
+  code        String  @unique @db.VarChar(10)
+  native_name String? @db.VarChar(100)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @db.Timestamptz(6)
+
+  profile_languages   ProfileLanguage[]
+  profile_preferences ProfilePreference[]
+
+  @@index([name])
+  @@index([code])
+  @@map("languages")
+}
+
+model InterestCategory {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String  @unique @db.VarChar(100)
+  icon_name     String? @db.VarChar(100)
+  display_order Int     @default(0)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @db.Timestamptz(6)
+
+  interests Interest[]
+
+  @@index([display_order])
+  @@map("interest_categories")
+}
+
+model Interest {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id String @db.Uuid
+
+  name      String  @db.VarChar(100)
+  slug      String  @unique @db.VarChar(100)
+  icon_name String? @db.VarChar(100)
+
+  display_order Int     @default(0)
+  is_active     Boolean @default(true)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @db.Timestamptz(6)
+
+  category InterestCategory @relation(fields: [category_id], references: [id])
+
+  profile_interests ProfileInterest[]
+
+  @@index([category_id])
+  @@index([name])
+  @@index([slug])
+  @@map("interests")
+}
+
+model Profile {
+  id String @id @db.Uuid
+
+  username     String @unique @db.VarChar(30)
+  display_name String @db.VarChar(100)
+
+  bio        String? @db.Text
+  avatar_url String? @db.Text
+
+  country_id String? @db.Uuid
+
+  visibility     Visibility    @default(PUBLIC)
+  account_status AccountStatus @default(ACTIVE)
+
+  is_verified Boolean @default(false)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  country Country? @relation(fields: [country_id], references: [id])
+
+  profile_languages   ProfileLanguage[]
+  profile_interests   ProfileInterest[]
+  profile_presence    ProfilePresence?
+  profile_settings    ProfileSettings?
+  profile_preferences ProfilePreference?
+
+  created_conversations Conversation[]       @relation("ConversationCreator")
+  conversation_members  ConversationMember[]
+  sent_messages         Message[]
+  message_reads         MessageRead[]
+
+  notifications Notification[]
+
+  blocked_users BlockedUser[] @relation("Blocker")
+  blocked_by    BlockedUser[] @relation("Blocked")
+
+  reports_created  Report[] @relation("Reporter")
+  reports_received Report[] @relation("ReportedProfile")
+  reports_reviewed Report[] @relation("Reviewer")
+
+  @@index([country_id])
+  @@index([visibility])
+  @@index([account_status])
+  @@map("profiles")
+}
+
+model ProfileLanguage {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  profile_id  String @db.Uuid
+  language_id String @db.Uuid
+
+  proficiency LanguageProficiency
+
+  is_primary Boolean @default(false)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  profile  Profile  @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [language_id], references: [id], onDelete: Restrict)
+
+  @@unique([profile_id, language_id])
+  @@index([profile_id])
+  @@index([language_id])
+  @@index([proficiency])
+  @@map("profile_languages")
+}
+
+model ProfileInterest {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  profile_id  String @db.Uuid
+  interest_id String @db.Uuid
+
+  interest_level InterestLevel
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  profile  Profile  @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  interest Interest @relation(fields: [interest_id], references: [id], onDelete: Restrict)
+
+  @@unique([profile_id, interest_id])
+  @@index([profile_id])
+  @@index([interest_id])
+  @@index([interest_level])
+  @@map("profile_interests")
+}
+
+model ProfilePresence {
+  profile_id String @id @db.Uuid
+
+  status PresenceStatus @default(OFFLINE)
+
+  last_seen DateTime @default(now()) @db.Timestamptz(6)
+
+  socket_id String? @db.VarChar(255)
+
+  device_type DeviceType?
+
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([last_seen])
+  @@index([socket_id])
+  @@map("profile_presence")
+}
+
+model ProfileSettings {
+  profile_id String @id @db.Uuid
+
+  theme Theme @default(SYSTEM)
+
+  email_notifications Boolean @default(true)
+  push_notifications  Boolean @default(true)
+
+  message_preview Boolean @default(true)
+
+  read_receipts Boolean @default(true)
+
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@map("profile_settings")
+}
+
+model ProfilePreference {
+  profile_id String @id @db.Uuid
+
+  discoverable Boolean @default(true)
+
+  allow_random_match Boolean @default(true)
+
+  preferred_language_id String? @db.Uuid
+  preferred_country_id  String? @db.Uuid
+
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  preferred_language Language? @relation(fields: [preferred_language_id], references: [id])
+
+  preferred_country Country? @relation(fields: [preferred_country_id], references: [id])
+
+  @@index([preferred_language_id])
+  @@index([preferred_country_id])
+  @@map("profile_preferences")
+}
+
+model Conversation {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  type   ConversationType
+  status ConversationStatus @default(REQUESTED)
+
+  title       String? @db.VarChar(150)
+  description String? @db.Text
+  avatar_url  String? @db.Text
+
+  created_by String @db.Uuid
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  creator Profile @relation("ConversationCreator", fields: [created_by], references: [id], onDelete: Cascade)
+
+  members  ConversationMember[]
+  messages Message[]
+
+  @@index([type])
+  @@index([status])
+  @@index([created_by])
+  @@index([updated_at])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  conversation_id String @db.Uuid
+  profile_id      String @db.Uuid
+
+  role MemberRole @default(MEMBER)
+
+  joined_at DateTime  @default(now()) @db.Timestamptz(6)
+  left_at   DateTime? @db.Timestamptz(6)
+
+  is_muted    Boolean @default(false)
+  is_pinned   Boolean @default(false)
+  is_archived Boolean @default(false)
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([conversation_id, profile_id])
+  @@index([conversation_id])
+  @@index([profile_id])
+  @@index([role])
+  @@map("conversation_members")
+}
+
+model Message {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  conversation_id String @db.Uuid
+  sender_id       String @db.Uuid
+
+  message_type MessageType @default(TEXT)
+  content      String      @db.Text
+
+  status MessageStatus @default(SENT)
+
+  reply_to_message_id String? @db.Uuid
+
+  edited_at  DateTime? @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  sender Profile @relation(fields: [sender_id], references: [id], onDelete: Restrict)
+
+  reply_to Message? @relation("MessageReplies", fields: [reply_to_message_id], references: [id], onDelete: SetNull)
+
+  replies Message[] @relation("MessageReplies")
+
+  reads   MessageRead[]
+  reports Report[]
+
+  @@index([conversation_id])
+  @@index([sender_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("messages")
+}
+
+model MessageRead {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  message_id String @db.Uuid
+  profile_id String @db.Uuid
+
+  read_at DateTime @default(now()) @db.Timestamptz(6)
+
+  message Message @relation(fields: [message_id], references: [id], onDelete: Cascade)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([message_id, profile_id])
+  @@index([message_id])
+  @@index([profile_id])
+  @@index([read_at])
+  @@map("message_reads")
+}
+
+model Notification {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  profile_id String @db.Uuid
+
+  type NotificationType
+
+  title String @db.VarChar(150)
+  body  String @db.Text
+
+  data Json?
+
+  is_read Boolean @default(false)
+
+  read_at DateTime? @db.Timestamptz(6)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id])
+  @@index([type])
+  @@index([is_read])
+  @@index([created_at])
+  @@map("notifications")
+}
+
+model BlockedUser {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  blocker_id String @db.Uuid
+  blocked_id String @db.Uuid
+
+  reason String? @db.Text
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  blocker Profile @relation("Blocker", fields: [blocker_id], references: [id], onDelete: Cascade)
+
+  blocked Profile @relation("Blocked", fields: [blocked_id], references: [id], onDelete: Cascade)
+
+  @@unique([blocker_id, blocked_id])
+  @@index([blocker_id])
+  @@index([blocked_id])
+  @@map("blocked_users")
+}
+
+model Report {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  reporter_id String @db.Uuid
+
+  reported_profile_id String? @db.Uuid
+
+  reported_message_id String? @db.Uuid
+
+  reason ReportReason
+
+  description String? @db.Text
+
+  status ReportStatus @default(PENDING)
+
+  reviewed_by String? @db.Uuid
+
+  reviewed_at DateTime? @db.Timestamptz(6)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  reporter Profile @relation("Reporter", fields: [reporter_id], references: [id], onDelete: Cascade)
+
+  reported_profile Profile? @relation("ReportedProfile", fields: [reported_profile_id], references: [id], onDelete: SetNull)
+
+  reported_message Message? @relation(fields: [reported_message_id], references: [id], onDelete: SetNull)
+
+  reviewer Profile? @relation("Reviewer", fields: [reviewed_by], references: [id], onDelete: SetNull)
+
+  @@index([reporter_id])
+  @@index([reported_profile_id])
+  @@index([reported_message_id])
+  @@index([status])
+  @@map("reports")
 }
