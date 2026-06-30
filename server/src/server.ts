@@ -1,10 +1,31 @@
-import app from './app.js';
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
+import { createServer } from "http";
+import { env } from "./config/env";
+import app from "./app";
+import { logger } from "./utils/logger";
+import { initializeSocket } from "./socket";
 
-dotenv.config();
+const PORT = env.PORT;
 
-const PORT = process.env.PORT || 5000;
+const server = createServer(app);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+initializeSocket(server);
+
+server.listen(PORT, () => {
+  logger.info(`🚀 WorldConnect API running at http://localhost:${PORT}`);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Graceful Shutdown
+|--------------------------------------------------------------------------
+*/
+
+process.on("SIGINT", () => {
+  logger.info("Stopping server...");
+
+  server.close(() => {
+    logger.info("Server stopped.");
+    process.exit(0);
+  });
 });

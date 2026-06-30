@@ -1,2 +1,1 @@
-// Placeholder
-export {};
+export { prisma } from "./prisma";
