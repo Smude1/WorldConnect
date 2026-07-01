@@ -7,6 +7,7 @@ import morgan from "morgan";
 import { env } from "./config/env";
 import { prisma } from "./database";
 import { errorHandler } from "./middleware/error.middleware";
+import v1Router from "./routes/v1";
 
 const app = express();
 
@@ -67,6 +68,8 @@ app.get("/health", async (_req: Request, res: Response, next) => {
     next(error);
   }
 });
+
+app.use("/api/v1", v1Router);
 
 /*
 |--------------------------------------------------------------------------
