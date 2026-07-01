@@ -18,6 +18,8 @@ const envSchema = z.object({
 
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
+  SUPABASE_ANON_KEY: z.string().min(1),
+
   JWT_SECRET: z.string().min(32),
 
   CLIENT_URL: z.string().url(),
